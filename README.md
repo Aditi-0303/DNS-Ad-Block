@@ -1,12 +1,11 @@
-<<<<<<< HEAD
 # AI-Powered DNS Analytics Dashboard
 
 This workspace contains a FastAPI backend and a Next.js frontend for a real-time AI-powered DNS analytics dashboard.
 
 ## Backend
-- `backend/app/main.py` - FastAPI app with `/analyze`, `/logs`, and `/ws`
-- `backend/app/ml_engine.py` - Lexical feature extraction, mock RandomForest classifier, and SHAP-style explainability
-- `backend/app/models.py` - SQLAlchemy SQLite model ready for Pi-hole FTL-style ingestion
+- `backend/app/main.py` - FastAPI app with Pi-hole event ingestion, logs, and WebSocket updates
+- `backend/app/ml_engine.py` - transparent Pi-hole explanation and false-positive assessment
+- `backend/app/models.py` - SQLite model that stores the Pi-hole decision plus its evidence
 - `backend/app/db.py` - SQLite database setup
 
 ### Run backend
@@ -32,40 +31,25 @@ npm run dev
 
 ## Notes
 - WebSocket events stream new DNS logs to the dashboard at `ws://localhost:8000/ws`
-- The SQLAlchemy schema is prepared to accept richer DNS metadata for future Pi-hole or FTL ingestion
-=======
-# AI-Powered DNS Analytics Dashboard
+- Pi-hole remains the source of truth: the XAI layer never changes a block/allow decision.
 
-This workspace contains a FastAPI backend and a Next.js frontend for a real-time AI-powered DNS analytics dashboard.
+## Pi-hole event integration
 
-## Backend
-- `backend/app/main.py` - FastAPI app with `/analyze`, `/logs`, and `/ws`
-- `backend/app/ml_engine.py` - Lexical feature extraction, mock RandomForest classifier, and SHAP-style explainability
-- `backend/app/models.py` - SQLAlchemy SQLite model ready for Pi-hole FTL-style ingestion
-- `backend/app/db.py` - SQLite database setup
+Send normalized events from a Raspberry Pi Pi-hole adapter to `POST /pihole/events`.
 
-### Run backend
-```bash
-cd backend
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```json
+{
+  "domain": "googleads.g.doubleclick.net",
+  "blocked": true,
+  "client_ip": "192.168.1.25",
+  "query_type": "A",
+  "matched_rule": "||doubleclick.net^",
+  "list_source": "EasyList",
+  "request_count": 126
+}
 ```
 
-## Frontend
-- `frontend/app/page.tsx` - Futuristic command center UI
-- `frontend/components/` - reusable metrics, chart, logs, and badge components
-- `frontend/globals.css` - dark neon styles with Tailwind utility overrides
-
-### Run frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## Notes
-- WebSocket events stream new DNS logs to the dashboard at `ws://localhost:8000/ws`
-- The SQLAlchemy schema is prepared to accept richer DNS metadata for future Pi-hole or FTL ingestion
->>>>>>> 7986519b442295d2fa5172a3c4d2b253620841e9
+The API stores the original decision and returns an auditable explanation:
+the matching rule/list, traffic category, evidence items, estimated impact, and
+a low/medium/high false-positive risk. A high risk is a prompt for review, not
+an automatic allow-list action.

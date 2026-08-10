@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AI DNS Analytics Command Center',
+  title: 'Ad Blocker Command Center',
   description: 'Real-time cybersecurity dashboard with AI-powered DNS threat analysis.',
 };
 
