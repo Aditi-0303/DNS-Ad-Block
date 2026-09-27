@@ -27,6 +27,7 @@ def init_db() -> None:
         "false_positive_risk": "VARCHAR(16) NOT NULL DEFAULT 'low'",
         "impact_summary": "TEXT NOT NULL DEFAULT ''",
         "request_count": "INTEGER NOT NULL DEFAULT 1",
+        "source_event_id": "VARCHAR(160)",
     }
     inspector = inspect(engine)
     existing = {column["name"] for column in inspector.get_columns("dns_logs")}
@@ -34,3 +35,7 @@ def init_db() -> None:
         for name, definition in expected_columns.items():
             if name not in existing:
                 connection.execute(text(f"ALTER TABLE dns_logs ADD COLUMN {name} {definition}"))
+        connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_dns_logs_source_event_id "
+            "ON dns_logs (source_event_id) WHERE source_event_id IS NOT NULL"
+        ))

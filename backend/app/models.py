@@ -17,6 +17,7 @@ class DNSLog(Base):
     explanation = Column(String(255), nullable=False)
     shap_summary = Column(Text, nullable=False)
     source = Column(String(64), default="manual", nullable=False)
+    source_event_id = Column(String(160), index=True, nullable=True)
     client_ip = Column(String(64), nullable=True)
     query_type = Column(String(16), default="A", nullable=True)
     # Pi-hole is the source of truth for this decision.  These fields retain

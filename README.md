@@ -35,7 +35,23 @@ npm run dev
 
 ## Pi-hole event integration
 
-Send normalized events from a Raspberry Pi Pi-hole adapter to `POST /pihole/events`.
+Configure the local backend to poll a Pi-hole v6 instance by copying
+`backend/.env.example` to `backend/.env` and setting the Pi-hole URL and
+application password. The `.env` file is ignored by Git and must never be
+committed.
+
+```env
+PIHOLE_BASE_URL=http://your-pihole-ip
+PIHOLE_APP_PASSWORD=your-private-application-password
+PIHOLE_VERIFY_TLS=false
+```
+
+The backend authenticates using Pi-hole's short-lived session ID and checks the
+query log every 10 seconds. Use `POST /pihole/sync` to request an immediate
+read-only sync. It ignores already imported query IDs.
+
+For test data or a future Raspberry Pi-side adapter, send normalized events to
+`POST /pihole/events`.
 
 ```json
 {

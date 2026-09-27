@@ -56,6 +56,13 @@ class PiHoleEventResponse(BaseModel):
     explanation: ExplanationRead
 
 
+class PiHoleSyncResponse(BaseModel):
+    imported: int
+    skipped: int
+    inspected: int
+    message: str
+
+
 class DNSLogRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,6 +77,7 @@ class DNSLogRead(BaseModel):
     explanation: str
     shap_summary: str
     source: str
+    source_event_id: Optional[str]
     client_ip: Optional[str]
     query_type: Optional[str]
     is_blocked: bool
