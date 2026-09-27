@@ -5,7 +5,4 @@
 ▲ Next.js 16.2.6 (webpack)
 - Local:         http://localhost:3000
 - Network:       http://10.5.0.2:3000
-✓ Ready in 680ms
-
-○ Compiling / ...
- GET / 200 in 11.8s (next.js: 10.8s, application-code: 1012ms)
+✓ Ready in 34.9s
