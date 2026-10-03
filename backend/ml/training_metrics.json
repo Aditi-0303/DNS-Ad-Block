@@ -1,0 +1,29 @@
+{
+    "dataset_rows": 68299,
+    "benign_samples": 62090,
+    "malicious_samples": 6209,
+    "test_samples": 13660,
+    "accuracy": 0.9885797950219619,
+    "roc_auc": 0.9761280051890805,
+    "pr_auc": 0.9387005850149936,
+    "precision": 0.9927404718693285,
+    "recall": 0.8808373590982287,
+    "f1": 0.9334470989761093,
+    "confusion_matrix": [
+        [
+            12410,
+            8
+        ],
+        [
+            148,
+            1094
+        ]
+    ],
+    "model_type": "GradientBoostingClassifier",
+    "n_estimators": 100,
+    "max_leaf_nodes": 20,
+    "min_samples_leaf": 10,
+    "malicious_weight": 3.0,
+    "random_state": 42,
+    "block_threshold": 0.9
+}

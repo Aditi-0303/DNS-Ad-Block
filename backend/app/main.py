@@ -73,46 +73,174 @@ async def broadcast_new_log(payload: dict) -> None:
             active_websockets.remove(websocket)
 
 
-def create_pihole_log(event: schemas.PiHoleEvent, db: Session, source_event_id: str | None = None) -> models.DNSLog:
+def create_pihole_log(
+    event: schemas.PiHoleEvent,
+    db: Session,
+    source_event_id: str | None = None
+) -> models.DNSLog:
+
     domain = event.domain.strip().lower().rstrip(".")
-    explanation = analyzer.explain_pihole_event(
+
+    # ---------------------------------------------------------
+    # 1. Existing Pi-hole explanation
+    # ---------------------------------------------------------
+    pihole_explanation = analyzer.explain_pihole_event(
         domain=domain,
         blocked=event.blocked,
         matched_rule=event.matched_rule,
         list_source=event.list_source,
         request_count=event.request_count,
     )
+
+    # ---------------------------------------------------------
+    # 2. Independent ML analysis
+    # ---------------------------------------------------------
+    ml_analysis = analyzer.analyze(domain)
+
+    ml_probability = ml_analysis["ml_probability"]
+    ml_decision = ml_analysis["ml_decision"]
+    ml_prediction = ml_analysis["prediction"]
+    domain_only_ml_probability = ml_analysis["domain_only_ml_probability"]
+    domain_only_ml_decision = ml_analysis["domain_only_ml_decision"]
+    domain_only_ml_suspicious = ml_analysis["domain_only_ml_suspicious"]
+
+    
+
+    # ---------------------------------------------------------
+    # 3. Final decision
+    #
+    # Pi-hole BLOCK always remains BLOCK.
+    # If Pi-hole allowed it, ML gets the second-line decision.
+    # ---------------------------------------------------------
+    if event.blocked:
+        final_blocked = True
+        final_prediction = "blocked"
+    elif domain_only_ml_suspicious:
+        final_blocked = True
+        final_prediction = "blocked"
+    else:
+        final_blocked = False
+        final_prediction = "allowed"
+
+    # ---------------------------------------------------------
+    # 4. Build explanation
+    # ---------------------------------------------------------
+    if event.blocked:
+        final_explanation = pihole_explanation["block_reason"]
+
+    elif ml_decision == "BLOCK":
+        final_explanation = (
+            "Pi-hole allowed the domain, but the ML classifier "
+            f"detected it as malicious with {ml_probability * 100:.2f}% confidence."
+        )
+
+    else:
+        final_explanation = (
+            "Pi-hole allowed the domain and the ML classifier "
+            f"assessed it as safe with {(1 - ml_probability) * 100:.2f}% confidence."
+        )
+
+    # ---------------------------------------------------------
+    # 5. Keep Pi-hole evidence and ML/SHAP evidence separate
+    # ---------------------------------------------------------
+    pihole_evidence = pihole_explanation["evidence"]
+
+    ml_shap_summary = (
+    ml_analysis["shap_summary"]
+    if final_blocked
+    else ""
+)
+
+    # ---------------------------------------------------------
+    # 6. Create database record
+    # ---------------------------------------------------------
     log = models.DNSLog(
         domain=domain,
+
         tld=domain.rsplit(".", 1)[-1] if "." in domain else "",
-        prediction="blocked" if event.blocked else "allowed",
-        score=round((1 - explanation["false_positive_score"]) * 100, 1),
+
+        prediction=final_prediction,
+
+        score=round(ml_probability * 100, 2),
+
         entropy=analyzer._calculate_entropy(domain),
+
         digit_count=sum(char.isdigit() for char in domain),
+
         domain_length=len(domain),
-        explanation=explanation["block_reason"],
-        shap_summary=json.dumps(explanation["evidence"]),
+
+        explanation=final_explanation,
+
+        # SHAP explanation
+        shap_summary=ml_shap_summary,
+
+                domain_only_ml_probability=ml_analysis[
+            "domain_only_ml_probability"
+        ],
+
+        domain_only_ml_decision=ml_analysis[
+            "domain_only_ml_decision"
+        ],
+
+        domain_only_ml_threshold=ml_analysis[
+            "domain_only_ml_threshold"
+        ],
+
+        domain_only_ml_suspicious=ml_analysis[
+            "domain_only_ml_suspicious"
+        ],
+
         source="pihole",
+
         source_event_id=source_event_id,
+
         client_ip=event.client_ip,
+
         query_type=event.query_type,
-        is_blocked=event.blocked,
-        category=explanation["category"],
-        block_reason=explanation["block_reason"],
+
+        # FINAL decision
+        is_blocked=final_blocked,
+
+        category=pihole_explanation["category"],
+
+        block_reason=(
+    event.matched_rule
+    if event.blocked and event.matched_rule
+    else (
+        json.loads(ml_shap_summary)[0]["reason"]
+        if final_blocked and ml_shap_summary
+        else (
+            "ML classifier detected malicious domain."
+            if ml_decision == "BLOCK"
+            else "No block decision."
+        )
+    )
+),
+
         matched_rule=event.matched_rule,
+
         list_source=event.list_source,
-        evidence=json.dumps(explanation["evidence"]),
-        false_positive_score=explanation["false_positive_score"],
-        false_positive_risk=explanation["false_positive_risk"],
-        impact_summary=explanation["impact_summary"],
+
+        # IMPORTANT:
+        # This remains Pi-hole evidence only.
+        evidence=json.dumps(pihole_evidence),
+
+        false_positive_score=pihole_explanation["false_positive_score"],
+
+        false_positive_risk=pihole_explanation["false_positive_risk"],
+
+        impact_summary=pihole_explanation["impact_summary"],
+
         request_count=event.request_count,
+
         created_at=event.occurred_at or datetime.utcnow(),
     )
+
     db.add(log)
     db.commit()
     db.refresh(log)
-    return log
 
+    return log
 
 async def synchronize_pihole_queries() -> dict[str, int]:
     if not pihole_client:
@@ -176,6 +304,10 @@ async def analyze_domain(request: schemas.AnalyzeRequest, db: Session = Depends(
         domain_length=data["domain_length"],
         explanation=data["explanation"],
         shap_summary=data["shap_summary"],
+        domain_only_ml_probability=data["domain_only_ml_probability"],
+        domain_only_ml_decision=data["domain_only_ml_decision"],
+        domain_only_ml_threshold=data["domain_only_ml_threshold"],
+        domain_only_ml_suspicious=data["domain_only_ml_suspicious"],
         source="api",
         client_ip=None,
         query_type="A",
@@ -223,7 +355,21 @@ async def ingest_pihole_event(event: schemas.PiHoleEvent, db: Session = Depends(
         "false_positive_risk": log.false_positive_risk,
         "impact_summary": log.impact_summary,
     }
-    response = {"id": log.id, "domain": log.domain, "blocked": event.blocked, "explanation": explanation}
+    response = {
+    "id": log.id,
+    "domain": log.domain,
+    "blocked": log.is_blocked,
+    "prediction": log.prediction,
+    "ml_probability": round(log.score / 100, 4),
+    "ml_decision": "BLOCK" if log.is_blocked else "ALLOW",
+    "ml_threshold": 0.90,
+    "domain_only_ml_probability": log.domain_only_ml_probability,
+    "domain_only_ml_decision": log.domain_only_ml_decision,
+    "domain_only_ml_threshold": log.domain_only_ml_threshold,
+    "domain_only_ml_suspicious": log.domain_only_ml_suspicious,
+    "shap_summary": json.loads(log.shap_summary) if log.shap_summary else [],
+    "explanation": explanation,
+}
     await broadcast_new_log({**response, "created_at": log.created_at.isoformat()})
     return response
 

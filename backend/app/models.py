@@ -16,6 +16,15 @@ class DNSLog(Base):
     domain_length = Column(Integer, nullable=False)
     explanation = Column(String(255), nullable=False)
     shap_summary = Column(Text, nullable=False)
+
+    
+        # Domain-only ML analysis
+    domain_only_ml_probability = Column(Float, nullable=True)
+    domain_only_ml_decision = Column(String(16), nullable=True)
+    domain_only_ml_threshold = Column(Float, nullable=True)
+    domain_only_ml_suspicious = Column(Boolean, nullable=True)
+
+
     source = Column(String(64), default="manual", nullable=False)
     source_event_id = Column(String(160), index=True, nullable=True)
     client_ip = Column(String(64), nullable=True)

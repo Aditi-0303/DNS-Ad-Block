@@ -12,7 +12,21 @@ class AnalyzeResponse(BaseModel):
     prediction: str
     score: float
     explanation: str
+
+    # Existing ML
+    ml_probability: float
+    ml_decision: str
+    ml_threshold: float
+
+    # New domain-only ML
+    domain_only_ml_probability: float
+    domain_only_ml_decision: str
+    domain_only_ml_threshold: float
+    domain_only_ml_suspicious: bool
+
+    # SHAP
     shap_summary: str
+
     entropy: float
     digit_count: int
     domain_length: int
@@ -48,11 +62,25 @@ class ExplanationRead(BaseModel):
     false_positive_risk: Literal["low", "medium", "high"]
     impact_summary: str
 
-
+class SHAPItem(BaseModel):
+    feature: str
+    value: float
+    shap_value: float
+    impact: Literal["malicious", "benign"]
+    reason: str
 class PiHoleEventResponse(BaseModel):
     id: int
     domain: str
     blocked: bool
+    prediction: str
+    ml_probability: float
+    ml_decision: str
+    ml_threshold: float
+    shap_summary: list[SHAPItem]
+    domain_only_ml_probability: Optional[float] = None
+    domain_only_ml_decision: Optional[str] = None
+    domain_only_ml_threshold: Optional[float] = None
+    domain_only_ml_suspicious: Optional[bool] = None
     explanation: ExplanationRead
 
 
@@ -76,6 +104,10 @@ class DNSLogRead(BaseModel):
     domain_length: int
     explanation: str
     shap_summary: str
+    domain_only_ml_probability: Optional[float] = None
+    domain_only_ml_decision: Optional[str] = None
+    domain_only_ml_threshold: Optional[float] = None
+    domain_only_ml_suspicious: Optional[bool] = None
     source: str
     source_event_id: Optional[str]
     client_ip: Optional[str]
